@@ -11,10 +11,11 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.22.2'
           channel: 'stable'
+      - run: flutter config --no-analytics
       - run: rm -rf android
-      - run: flutter create -t app.
+      - run: flutter create --platforms=android.
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4

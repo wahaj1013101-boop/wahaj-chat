@@ -1,24 +1,117 @@
-name: Build APK
-on: push
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.2'
-          channel: 'stable'
-      - run: flutter config --no-analytics
-      - run: rm -rf android
-      - run: flutter create --project-name wahaj_chat . --platforms android
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wahaj-chat-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+import 'package:flutter/material.dart';
+
+void main() => runApp(WahajChat());
+
+class WahajChat extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Wahaj Chat',
+      theme: ThemeData(primarySwatch: Colors.teal),
+      home: ChatScreen(),
+    );
+  }
+}
+
+class ChatScreen extends StatefulWidget {
+  @override
+  _ChatScreenState createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final TextEditingController _controller = TextEditingController();
+  final List<Map<String, dynamic>> _messages = [];
+
+  void _sendMessage() {
+    if (_controller.text.trim().isEmpty) return;
+    setState(() {
+      _messages.add({
+        'text': _controller.text,
+        'isMe': true,
+        'time': '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2,'0')}'
+      });
+      // رد تلقائي
+      Future.delayed(Duration(seconds: 1), () {
+        setState(() {
+          _messages.add({
+            'text': 'أهلا يا وهاج! رسالتك وصلت: ${_controller.text} 🔥',
+            'isMe': false,
+            'time': '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2,'0')}'
+          });
+        });
+      });
+      _controller.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('وهج شات 🔥', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.teal,
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              reverse: true,
+              padding: EdgeInsets.all(12),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[_messages.length - 1 - index];
+                return Align(
+                  alignment: msg['isMe']? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: EdgeInsets.symmetric(vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: msg['isMe']? Colors.teal[400] : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(msg['text'], style: TextStyle(color: msg['isMe']? Colors.white : Colors.black, fontSize: 16)),
+                        SizedBox(height: 2),
+                        Text(msg['time'], style: TextStyle(fontSize: 10, color: msg['isMe']? Colors.white70 : Colors.black54)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.all(8),
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      hintText: 'اكتب رسالة...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                FloatingActionButton(
+                  onPressed: _sendMessage,
+                  mini: true,
+                  backgroundColor: Colors.teal,
+                  child: Icon(Icons.send),
+                )
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}

@@ -15,7 +15,7 @@ jobs:
           channel: 'stable'
       - run: flutter config --no-analytics
       - run: rm -rf android
-      - run: flutter create . --platforms=android
+      - run: flutter create --project-name wahaj_chat . --platforms android
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4

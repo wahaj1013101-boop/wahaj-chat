@@ -1,0 +1,240 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(WahajChatApp());
+}
+
+class WahajChatApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Wahaj Chat',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        scaffoldBackgroundColor: Color(0xFFF8F5FF),
+        appBarTheme: AppBarTheme(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+      ),
+      home: AuthWrapper(),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (c, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Scaffold(body: Center(child: CircularProgressIndicator(color: Colors.purple)));
+        }
+        if (snap.hasData) return HomeScreen();
+        return LoginScreen();
+      },
+    );
+  }
+}
+
+class LoginScreen extends StatefulWidget {
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+class _LoginScreenState extends State<LoginScreen> {
+  final email = TextEditingController();
+  final pass = TextEditingController();
+  final name = TextEditingController();
+  bool isLogin = true;
+  bool loading = false;
+
+  Future<void> submit() async {
+    if (email.text.trim().isEmpty || pass.text.trim().isEmpty) return;
+    setState(()=>loading=true);
+    try {
+      if (isLogin) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email.text.trim(), password: pass.text.trim());
+      } else {
+        var cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email.text.trim(), password: pass.text.trim());
+        await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({
+          'email': email.text.trim(),
+          'name': name.text.trim().isEmpty? email.text.split('@')[0] : name.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    setState(()=>loading=false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(padding: EdgeInsets.all(24),
+          child: Column(children: [
+            Icon(Icons.auto_awesome, size: 80, color: Colors.purple),
+            Text("Wahaj Chat", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.purple)),
+            Text("نور وهج - شات جماعي وخاص"),
+            SizedBox(height: 30),
+            if (!isLogin) TextField(controller: name, decoration: InputDecoration(labelText: "اسمك", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            if (!isLogin) SizedBox(height: 12),
+            TextField(controller: email, decoration: InputDecoration(labelText: "الإيميل", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            SizedBox(height: 12),
+            TextField(controller: pass, obscureText: true, decoration: InputDecoration(labelText: "كلمة السر", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            SizedBox(height: 20),
+            SizedBox(width: double.infinity, height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                onPressed: loading? null : submit,
+                child: loading? CircularProgressIndicator(color: Colors.white) : Text(isLogin? "دخول" : "إنشاء حساب", style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            TextButton(onPressed: ()=>setState(()=>isLogin=!isLogin), child: Text(isLogin? "ما عندك حساب؟ سجلي" : "عندك حساب؟ ادخلي")),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController tab;
+  @override
+  void initState(){ tab = TabController(length: 2, vsync: this); super.initState();}
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Wahaj Chat 💜"),
+        bottom: TabBar(controller: tab, tabs: [Tab(text: "القروب العام"), Tab(text: "الخاص")]),
+        actions: [IconButton(icon: Icon(Icons.logout), onPressed: ()=>FirebaseAuth.instance.signOut())],
+      ),
+      body: TabBarView(controller: tab, children: [GroupChat(), PrivateUsersList()]),
+    );
+  }
+}
+
+class GroupChat extends StatefulWidget { @override _GroupChatState createState() => _GroupChatState(); }
+class _GroupChatState extends State<GroupChat> {
+  final msg = TextEditingController();
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  void send() {
+    if (msg.text.trim().isEmpty) return;
+    FirebaseFirestore.instance.collection('group_messages').add({
+      'text': msg.text.trim(),
+      'senderId': uid,
+      'senderEmail': FirebaseAuth.instance.currentUser!.email,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    msg.clear();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Expanded(child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('group_messages').orderBy('timestamp', descending: true).limit(200).snapshots(),
+        builder: (c, snap) {
+          if (!snap.hasData) return Center(child: CircularProgressIndicator());
+          return ListView.builder(reverse: true, itemCount: snap.data!.docs.length, itemBuilder: (c,i){
+            var d = snap.data!.docs[i].data() as Map;
+            bool me = d['senderId']==uid;
+            return Align(alignment: me? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(margin: EdgeInsets.symmetric(vertical: 4, horizontal: 12), padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(color: me? Colors.purple : Colors.white, borderRadius: BorderRadius.circular(16)),
+                child: Text(d['text']??'', style: TextStyle(color: me? Colors.white : Colors.black87))));
+          });
+        },
+      )),
+      Padding(padding: EdgeInsets.all(8), child: Row(children: [
+        Expanded(child: TextField(controller: msg, decoration: InputDecoration(hintText: "اكتبي في قروب وهج...", border: OutlineInputBorder(borderRadius: BorderRadius.circular(20))))),
+        CircleAvatar(backgroundColor: Colors.purple, child: IconButton(icon: Icon(Icons.send, color: Colors.white), onPressed: send))
+      ]))
+    ]);
+  }
+}
+
+class PrivateUsersList extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    var myUid = FirebaseAuth.instance.currentUser!.uid;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (c, snap) {
+        if (!snap.hasData) return Center(child: CircularProgressIndicator());
+        var users = snap.data!.docs.where((d)=>d.id!=myUid).toList();
+        if (users.isEmpty) return Center(child: Text("لسه ما في مستخدمين"));
+        return ListView.builder(itemCount: users.length, itemBuilder: (c,i){
+          var u = users[i].data() as Map;
+          return ListTile(
+            leading: CircleAvatar(child: Text((u['name']??'U')[0])),
+            title: Text(u['name']??u['email']),
+            onTap: ()=>Navigator.push(context, MaterialPageRoute(builder: (_)=>PrivateChat(otherId: users[i].id, otherName: u['name']??u['email']))),
+          );
+        });
+      },
+    );
+  }
+}
+
+class PrivateChat extends StatefulWidget {
+  final String otherId; final String otherName;
+  PrivateChat({required this.otherId, required this.otherName});
+  @override _PrivateChatState createState() => _PrivateChatState();
+}
+class _PrivateChatState extends State<PrivateChat> {
+  final msg = TextEditingController();
+  late String chatId;
+  @override
+  void initState(){
+    var myId = FirebaseAuth.instance.currentUser!.uid;
+    List ids = [myId, widget.otherId]; ids.sort();
+    chatId = ids.join('_');
+    super.initState();
+  }
+  void send(){
+    if (msg.text.trim().isEmpty) return;
+    FirebaseFirestore.instance.collection('private_chats').doc(chatId).collection('messages').add({
+      'text': msg.text.trim(),
+      'senderId': FirebaseAuth.instance.currentUser!.uid,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    msg.clear();
+  }
+  @override
+  Widget build(BuildContext context) {
+    var myId = FirebaseAuth.instance.currentUser!.uid;
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.otherName)),
+      body: Column(children: [
+        Expanded(child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('private_chats').doc(chatId).collection('messages').orderBy('timestamp', descending: true).snapshots(),
+          builder: (c,snap){
+            if (!snap.hasData) return Center(child: CircularProgressIndicator());
+            return ListView.builder(reverse: true, itemCount: snap.data!.docs.length, itemBuilder: (c,i){
+              var d = snap.data!.docs[i].data() as Map;
+              bool me = d['senderId']==myId;
+              return Align(alignment: me? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(margin: EdgeInsets.all(6), padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: me? Colors.purple : Colors.grey[200], borderRadius: BorderRadius.circular(12)),
+                  child: Text(d['text']??'', style: TextStyle(color: me? Colors.white : Colors.black))));
+            });
+          },
+        )),
+        Padding(padding: EdgeInsets.all(8), child: Row(children: [
+          Expanded(child: TextField(controller: msg, decoration: InputDecoration(hintText: "رسالة...", border: OutlineInputBorder(borderRadius: BorderRadius.circular(20))))),
+          IconButton(icon: Icon(Icons.send, color: Colors.purple), onPressed: send)
+        ]))
+      ]),
+    );
+  }
+}

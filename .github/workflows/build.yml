@@ -15,7 +15,7 @@ jobs:
         with:
           flutter-version: '3.22.0'
       - name: Create android folder
-        run: flutter create. --platforms=android --project-name wahaj_chat
+        run: flutter create . --platforms=android --project-name wahaj_chat
       - name: Check google file
         run: ls -R | grep google || echo "no google file"
       - run: flutter pub get

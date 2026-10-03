@@ -1,22 +1,103 @@
 name: Build APK
-on: push
+on:
+  push:
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Save google file
+        run: |
+          mkdir -p /tmp/save
+          if [ -f android/app/google-services.json ]; then cp android/app/google-services.json /tmp/save/g.json; echo "found in android"; fi
+          if [ -f google-services.json ]; then cp google-services.json /tmp/save/g.json; echo "found in root"; fi
+          ls /tmp/save/ || echo "no file"
       - uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
-          channel: 'stable'
-      - run: flutter create . --platforms=android --project-name wahaj_chat
+          flutter-version: '3.22.0'
+      - name: Fix android folder
+        run: flutter create . --platforms=android --project-name wahaj_chat
+      - name: Restore google file
+        run: |
+          cp /tmp/save/g.json android/app/google-services.json
+          echo "restored to android/app"
+          ls android/app/google-services.json
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
-          name: wahaj-chat-apk
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apkname: Build APK
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save google file
+        run: |
+          mkdir -p /tmp/save
+          if [ -f android/app/google-services.json ]; then cp android/app/google-services.json /tmp/save/g.json; echo "found in android"; fi
+          if [ -f google-services.json ]; then cp google-services.json /tmp/save/g.json; echo "found in root"; fi
+          ls /tmp/save/ || echo "no file"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+      - name: Fix android folder
+        run: flutter create . --platforms=android --project-name wahaj_chat
+      - name: Restore google file
+        run: |
+          cp /tmp/save/g.json android/app/google-services.json
+          echo "restored to android/app"
+          ls android/app/google-services.json
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apkname: Build APK
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save google file
+        run: |
+          mkdir -p /tmp/save
+          if [ -f android/app/google-services.json ]; then cp android/app/google-services.json /tmp/save/g.json; echo "found in android"; fi
+          if [ -f google-services.json ]; then cp google-services.json /tmp/save/g.json; echo "found in root"; fi
+          ls /tmp/save/ || echo "no file"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+      - name: Fix android folder
+        run: flutter create . --platforms=android --project-name wahaj_chat
+      - name: Restore google file
+        run: |
+          cp /tmp/save/g.json android/app/google-services.json
+          echo "restored to android/app"
+          ls android/app/google-services.json
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
